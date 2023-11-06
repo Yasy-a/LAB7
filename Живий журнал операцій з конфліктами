@@ -1,0 +1,109 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+
+class OperationLog
+{
+    private readonly List<Operation> operations = new List<Operation>();
+    private readonly object lockObj = new object();
+
+    public void AddOperation(int threadId, string operation)
+    {
+        lock (lockObj)
+        {
+            operations.Add(new Operation(threadId, operation));
+        }
+    }
+
+    public void DetectAndResolveConflicts()
+    {
+        lock (lockObj)
+        {
+            for (int i = 0; i < operations.Count - 1; i++)
+            {
+                for (int j = i + 1; j < operations.Count; j++)
+                {
+                    if (operations[i].IsConflict(operations[j]))
+                    {
+                        Console.WriteLine($"Conflict detected between operations {i} and {j}. Resolving conflict...");
+                        operations[i].ResolveConflict(operations[j]);
+                    }
+                }
+            }
+        }
+    }
+
+    public void PrintLog()
+    {
+        lock (lockObj)
+        {
+            Console.WriteLine("Operation Log:");
+            foreach (var operation in operations)
+            {
+                Console.WriteLine(operation.ToString());
+            }
+        }
+    }
+}
+
+class Operation
+{
+    private readonly int threadId;
+    private readonly string operation;
+    private readonly DateTime timestamp;
+
+    public Operation(int threadId, string operation)
+    {
+        this.threadId = threadId;
+        this.operation = operation;
+        this.timestamp = DateTime.Now;
+    }
+
+    public bool IsConflict(Operation other)
+    {
+        return this.threadId != other.threadId && Math.Abs((this.timestamp - other.timestamp).TotalSeconds) < 2;
+    }
+
+    public void ResolveConflict(Operation other)
+    {
+        // Implement conflict resolution logic here
+        Console.WriteLine($"Conflict between operations resolved: '{this.operation}' and '{other.operation}'");
+    }
+
+    public override string ToString()
+    {
+        return $"Thread {threadId} - {operation} at {timestamp:HH:mm:ss.fff}";
+    }
+}
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        OperationLog log = new OperationLog();
+
+        Thread thread1 = new Thread(() => ExecuteOperation(log, 1, "Modify resource A"));
+        Thread thread2 = new Thread(() => ExecuteOperation(log, 2, "Modify resource B"));
+        Thread thread3 = new Thread(() => ExecuteOperation(log, 1, "Modify resource B"));
+        Thread thread4 = new Thread(() => ExecuteOperation(log, 3, "Modify resource A"));
+
+        thread1.Start();
+        thread2.Start();
+        thread3.Start();
+        thread4.Start();
+
+        thread1.Join();
+        thread2.Join();
+        thread3.Join();
+        thread4.Join();
+
+        log.DetectAndResolveConflicts();
+        log.PrintLog();
+    }
+
+    static void ExecuteOperation(OperationLog log, int threadId, string operation)
+    {
+        log.AddOperation(threadId, operation);
+        Thread.Sleep(1000);
+    }
+}
