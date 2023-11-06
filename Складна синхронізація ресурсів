@@ -1,0 +1,84 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+
+class ResourceSimulator
+{
+    private static SemaphoreSlim cpuSemaphore = new SemaphoreSlim(1);
+    private static SemaphoreSlim ramSemaphore = new SemaphoreSlim(1);
+    private static SemaphoreSlim diskSemaphore = new SemaphoreSlim(1);
+    private static Mutex priorityMutex = new Mutex();
+
+    public static void AccessResource(string threadName, string resourceType, bool isHighPriority)
+    {
+        Console.WriteLine($"{threadName} is requesting access to {resourceType}");
+
+        if (isHighPriority)
+        {
+            priorityMutex.WaitOne(); // High-priority threads must obtain this mutex first
+        }
+
+        try
+        {
+            switch (resourceType)
+            {
+                case "CPU":
+                    cpuSemaphore.Wait();
+                    break;
+                case "RAM":
+                    ramSemaphore.Wait();
+                    break;
+                case "Disk":
+                    diskSemaphore.Wait();
+                    break;
+                default:
+                    Console.WriteLine($"Invalid resource type: {resourceType}");
+                    return;
+            }
+
+            Console.WriteLine($"{threadName} obtained access to {resourceType}");
+            // Simulate resource usage
+            Thread.Sleep(1000);
+        }
+        finally
+        {
+            switch (resourceType)
+            {
+                case "CPU":
+                    cpuSemaphore.Release();
+                    break;
+                case "RAM":
+                    ramSemaphore.Release();
+                    break;
+                case "Disk":
+                    diskSemaphore.Release();
+                    break;
+            }
+
+            if (isHighPriority)
+            {
+                priorityMutex.ReleaseMutex();
+            }
+
+            Console.WriteLine($"{threadName} released {resourceType}");
+        }
+    }
+
+    public static void Main(string[] args)
+    {
+        Thread thread1 = new Thread(() => AccessResource("Thread 1", "CPU", true));
+        Thread thread2 = new Thread(() => AccessResource("Thread 2", "RAM", false));
+        Thread thread3 = new Thread(() => AccessResource("Thread 3", "Disk", true));
+        Thread thread4 = new Thread(() => AccessResource("Thread 4", "CPU", false));
+
+        thread1.Start();
+        thread2.Start();
+        thread3.Start();
+        thread4.Start();
+
+        thread1.Join();
+        thread2.Join();
+        thread3.Join();
+        thread4.Join();
+    }
+}
