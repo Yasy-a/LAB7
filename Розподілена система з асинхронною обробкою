@@ -1,0 +1,73 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+
+class DistributedSystemNode
+{
+    private string nodeId;
+    private List<DistributedSystemNode> peers;
+    private bool isActive;
+
+    public DistributedSystemNode(string nodeId)
+    {
+        this.nodeId = nodeId;
+        this.peers = new List<DistributedSystemNode>();
+        this.isActive = true;
+    }
+
+    public async Task SendMessageAsync(string message, DistributedSystemNode recipient)
+    {
+        Console.WriteLine($"Node {nodeId} sending message to {recipient.nodeId}: {message}");
+        // Simulate some async work before sending the message
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        recipient.ReceiveMessage(message, this);
+    }
+
+    public void ReceiveMessage(string message, DistributedSystemNode sender)
+    {
+        Console.WriteLine($"Node {nodeId} received message from {sender.nodeId}: {message}");
+    }
+
+    public void AddPeer(DistributedSystemNode peer)
+    {
+        peers.Add(peer);
+    }
+
+    public void NotifyStatusChange(bool newStatus)
+    {
+        isActive = newStatus;
+        Console.WriteLine($"Node {nodeId} is {(isActive ? "active" : "inactive")}");
+        // Notify peers about the status change
+        foreach (var peer in peers)
+        {
+            peer.ReceiveStatusChange(this, isActive);
+        }
+    }
+
+    public void ReceiveStatusChange(DistributedSystemNode sender, bool newStatus)
+    {
+        Console.WriteLine($"Node {nodeId} received status change notification from {sender.nodeId}: {sender.nodeId} is {(newStatus ? "active" : "inactive")}");
+    }
+}
+
+class Program
+{
+    static async Task Main(string[] args)
+    {
+        DistributedSystemNode node1 = new DistributedSystemNode("Node 1");
+        DistributedSystemNode node2 = new DistributedSystemNode("Node 2");
+
+        node1.AddPeer(node2);
+        node2.AddPeer(node1);
+
+        // Simulate sending a message from Node 1 to Node 2
+        await node1.SendMessageAsync("Hello from Node 1 to Node 2", node2);
+
+        // Simulate a status change in Node 2
+        node2.NotifyStatusChange(false);
+
+        // Simulate sending another message from Node 2 to Node 1
+        await node2.SendMessageAsync("Hello from Node 2 to Node 1", node1);
+    }
+}
