@@ -1,0 +1,85 @@
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+
+class EventSystem
+{
+    private ConcurrentDictionary<string, List<Action>> eventSubscriptions = new ConcurrentDictionary<string, List<Action>>();
+    private int logicalClock = 0;
+    private Dictionary<string, int> nodeClocks = new Dictionary<string, int>();
+
+    public void RegisterEvent(string eventName)
+    {
+        eventSubscriptions.TryAdd(eventName, new List<Action>());
+    }
+
+    public void Subscribe(string eventName, Action action)
+    {
+        if (eventSubscriptions.TryGetValue(eventName, out List<Action> subscribers))
+        {
+            subscribers.Add(action);
+        }
+    }
+
+    public void PublishEvent(string eventName, string nodeId)
+    {
+        int timestamp = LamportTimestamp(nodeId);
+        Interlocked.Increment(ref logicalClock);
+
+        Console.WriteLine($"Node {nodeId} publishes event {eventName} with Lamport timestamp {timestamp}");
+
+        if (eventSubscriptions.TryGetValue(eventName, out List<Action> subscribers))
+        {
+            foreach (var subscriber in subscribers)
+            {
+                Task.Run(() => subscriber());
+            }
+        }
+    }
+
+    public void AddNode(string nodeId)
+    {
+        nodeClocks[nodeId] = 0;
+    }
+
+    public void RemoveNode(string nodeId)
+    {
+        nodeClocks.Remove(nodeId);
+    }
+
+    private int LamportTimestamp(string nodeId)
+    {
+        if (nodeClocks.TryGetValue(nodeId, out int nodeTimestamp))
+        {
+            nodeTimestamp = Math.Max(nodeTimestamp, logicalClock) + 1;
+            nodeClocks[nodeId] = nodeTimestamp;
+            return nodeTimestamp;
+        }
+
+        return -1;
+    }
+}
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        EventSystem eventSystem = new EventSystem();
+        eventSystem.RegisterEvent("EventA");
+
+        eventSystem.AddNode("Node1");
+        eventSystem.AddNode("Node2");
+
+        eventSystem.Subscribe("EventA", () => Console.WriteLine("Subscriber 1 received EventA"));
+        eventSystem.Subscribe("EventA", () => Console.WriteLine("Subscriber 2 received EventA"));
+
+        eventSystem.PublishEvent("EventA", "Node1");
+        eventSystem.PublishEvent("EventA", "Node2");
+
+        eventSystem.RemoveNode("Node2");
+
+        eventSystem.PublishEvent("EventA", "Node1");
+    }
+}
